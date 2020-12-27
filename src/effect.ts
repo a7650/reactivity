@@ -1,12 +1,30 @@
+// 存储依赖
 type Deps = Set<ReactiveEffect>
+// 通过key去获取依赖，key => Deps
 type DepsMap = Map<any, Deps>
-type ReactiveEffect = () => any
 
+interface ReactiveEffect<T = any> {
+  (): T
+  raw: () => T
+  options: ReactiveEffectOptions
+}
+
+//
+interface ReactiveEffectOptions {
+  lazy?: boolean
+  scheduler?: (job: ReactiveEffect) => void
+}
+
+// 通过target去获取DepsMap，target => DepsMap
 const targetMap = new WeakMap<any, DepsMap>()
 
+// 当前正在执行的effect
 let activeEffect: ReactiveEffect | undefined
+
+// 存储effect的调用栈
 const effectStack: ReactiveEffect[] = []
 
+// 收集依赖
 export function track(target: object, key: unknown) {
   if (!activeEffect) {
     return
@@ -24,34 +42,63 @@ export function track(target: object, key: unknown) {
   }
 }
 
+// 通知更新
 export function trigger(target: object, key: any, newValue?: any) {
+  // 获取该对象的depsMap
   const depsMap = targetMap.get(target)
+  // 获取不到时说明没有触发过getter
   if (!depsMap) {
     return
   }
+  // 然后根据key获取deps，也就是之前存的effect函数
   const effects = depsMap.get(key)
+  // 执行所有的effect函数
   if (effects) {
-    effects.forEach((effect) => effect())
+    effects.forEach((effect) => {
+      if (effect.options.scheduler) {
+        effect.options.scheduler(effect)
+      } else {
+        effect()
+      }
+    })
   }
 }
 
-export function effect(fn: () => any) {
-  const effect = createReactiveEffect(fn)
+export function effect<T = any>(
+  fn: () => T,
+  options: ReactiveEffectOptions = {}
+): ReactiveEffect<T> {
+  // 创建一个effect函数
+  const effect = createReactiveEffect(fn, options)
+  if (!options.lazy) {
+    effect()
+  }
   return effect
 }
 
-function createReactiveEffect(fn: () => any) {
+function createReactiveEffect<T = any>(
+  fn: () => T,
+  options: ReactiveEffectOptions
+): ReactiveEffect<T> {
   const effect = function reactiveEffect() {
+    // 当前effectStack调用栈不存在这个effect时再执行，避免死循环
     if (!effectStack.includes(effect)) {
       try {
+        // 把当前的effectStack添加进effectStack
         effectStack.push(effect)
+        // 设置当前的effect，这样Proxy中的getter就可以访问到了
         activeEffect = effect
+        // 执行函数
         return fn()
       } finally {
+        // 执行完后就将当前这个effect出栈
         effectStack.pop()
+        // 把activeEffect恢复
         activeEffect = effectStack[effectStack.length - 1]
       }
     }
   } as ReactiveEffect
+  effect.raw = fn
+  effect.options = options
   return effect
 }
