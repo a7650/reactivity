@@ -1,3 +1,6 @@
+import { ITERATE_KEY } from './handlers'
+import { TrackOpTypes, TriggerOpTypes } from './operations'
+
 // 存储依赖
 type Deps = Set<ReactiveEffect>
 // 通过key去获取依赖，key => Deps
@@ -25,7 +28,7 @@ let activeEffect: ReactiveEffect | undefined
 const effectStack: ReactiveEffect[] = []
 
 // 收集依赖
-export function track(target: object, key: unknown) {
+export function track(target: object, type: TrackOpTypes, key: unknown) {
   if (!activeEffect) {
     return
   }
@@ -43,25 +46,39 @@ export function track(target: object, key: unknown) {
 }
 
 // 通知更新
-export function trigger(target: object, key: any, newValue?: any) {
+export function trigger(
+  target: object,
+  type: TriggerOpTypes,
+  key: any,
+  newValue?: any
+) {
   // 获取该对象的depsMap
   const depsMap = targetMap.get(target)
   // 获取不到时说明没有触发过getter
   if (!depsMap) {
     return
   }
-  // 然后根据key获取deps，也就是之前存的effect函数
-  const effects = depsMap.get(key)
-  // 执行所有的effect函数
-  if (effects) {
-    effects.forEach((effect) => {
-      if (effect.options.scheduler) {
-        effect.options.scheduler(effect)
-      } else {
-        effect()
-      }
-    })
+  const effects = new Set<ReactiveEffect>()
+  const add = (data: Set<ReactiveEffect> | undefined) => {
+    if (data) {
+      data.forEach((effect) => {
+        if (effect !== activeEffect) {
+          effects.add(effect)
+        }
+      })
+    }
   }
+  add(depsMap.get(key))
+  add(depsMap.get(ITERATE_KEY))
+  // 然后根据key获取deps，也就是之前存的effect函数
+  // 执行所有的effect函数
+  effects.forEach((effect) => {
+    if (effect.options.scheduler) {
+      effect.options.scheduler(effect)
+    } else {
+      effect()
+    }
+  })
 }
 
 export function effect<T = any>(
