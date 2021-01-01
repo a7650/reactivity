@@ -69,7 +69,9 @@ export function trigger(
     }
   }
   add(depsMap.get(key))
-  add(depsMap.get(ITERATE_KEY))
+  if (type === TriggerOpTypes.ADD || type === TriggerOpTypes.DELETE) {
+    add(depsMap.get(Array.isArray(target) ? 'length' : ITERATE_KEY))
+  }
   // 然后根据key获取deps，也就是之前存的effect函数
   // 执行所有的effect函数
   effects.forEach((effect) => {

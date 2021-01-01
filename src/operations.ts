@@ -1,6 +1,7 @@
 export const enum TrackOpTypes {
   GET = 'get',
-  ITERATE = 'iterate'
+  ITERATE = 'iterate',
+  HAS = 'has'
 }
 
 export const enum TriggerOpTypes {

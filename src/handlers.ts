@@ -19,8 +19,8 @@ export const baseHandlers: ProxyHandler<object> = {
   },
   set(target: Target, key: string | symbol, value: any, receiver: object) {
     // 设置value
-    const result = Reflect.set(target, key, value, receiver)
     const hadKey = hasOwn(target, key)
+    const result = Reflect.set(target, key, value, receiver)
     // 通知更新
     trigger(
       target,
@@ -44,5 +44,10 @@ export const baseHandlers: ProxyHandler<object> = {
   ownKeys(target: Target): (string | number | symbol)[] {
     track(target, TrackOpTypes.ITERATE, ITERATE_KEY)
     return Reflect.ownKeys(target)
+  },
+  has(target: object, key: string | symbol): boolean {
+    const result = Reflect.has(target, key)
+    track(target, TrackOpTypes.HAS, key)
+    return result
   }
 }
